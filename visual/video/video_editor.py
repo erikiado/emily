@@ -21,7 +21,6 @@ from PIL import ImageFont, ImageDraw, Image, ImageOps, ImageFilter
 
 from audio.analysis.audio_analyzer import AudioAnalyzer
 from visual.video.frame_queue import FrameQueue
-from visual.text.random_text import RandomText
 from visual.text.fonts import FONT_WIDTHS
 from utils.constants import PATHS, DEFAULT_FPS
 from utils.time_utils import timestamp_to_video_frame
