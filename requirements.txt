@@ -74,7 +74,7 @@ soundscrape==0.30.1
 soupsieve==2.0
 spleeter==1.4.9
 tensorboard==1.14.0
-tensorflow==1.15.2
+tensorflow==2.5.1
 tensorflow-cpu==2.1.0
 tensorflow-datasets==2.1.0
 tensorflow-estimator==1.14.0
