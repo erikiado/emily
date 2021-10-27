@@ -46,6 +46,8 @@ class FrameQueue:
   backgrounds = dict()
   interpolation = 'source_rate'
   image_enabled = True
+  start_time = None
+  selected = None
 
   def __init__(self, file_paths, height=None, width=None, image_source_rate=None, video_source_rate=None, fps=None):
     # master_height = 720
@@ -148,14 +150,19 @@ class FrameQueue:
 
   def prepare_frame(self, count, video=True):
     self.frame_count = count
-    if video and not self.loaded_video:
-      self.load_next_video(category=self.current_category)
-    if self.interpolation == 'source_rate' and self.frame_count%self.source_rate==0:
-      self.image_enabled = not self.image_enabled
-      self.video_enabled = not self.video_enabled
-    if video:
-      if self.video_enabled and self.frame_count%self.video_source_rate == 0:
+    if self.selected:
+      video = True
+      if not self.loaded_video:
+        self.load_next_video(selected=self.selected)
+    else:
+      if video and not self.loaded_video:
         self.load_next_video(category=self.current_category)
+      if self.interpolation == 'source_rate' and self.frame_count%self.source_rate==0:
+        self.image_enabled = not self.image_enabled
+        self.video_enabled = not self.video_enabled
+      if video:
+        if self.video_enabled and self.frame_count%self.video_source_rate == 0:
+          self.load_next_video(category=self.current_category)
 
 
   def update_source_rate(self, source_rate, image_source_rate=None, interpolation=None):
@@ -165,6 +172,13 @@ class FrameQueue:
       self.image_source_rate = image_source_rate
     if interpolation:
       self.interpolation = 'source_rate'
+
+
+  def update_config(self, config):
+    if 'start_time' in config:
+      self.start_time = config['start_time']
+    if 'selected' in config:
+      self.selected = config['selected']
 
 
   def get_image(self, category):
@@ -220,7 +234,7 @@ class FrameQueue:
       if frame.shape[0] <= self.master_height and frame.shape[1] <= self.master_width:
         break
 
-  def load_next_video(self, category=None):
+  def load_next_video(self, category=None, selected=None):
     if category:
       video_file_list = self.loaded_category_videos[category]
     else:
@@ -229,18 +243,44 @@ class FrameQueue:
     if self.loaded_video is not None:
       self.loaded_video.release()
       self.loaded_video = None
-
-    self.next_index = random.randint(0,len(video_file_list)-1)
-    if self.next_index == self.current_file_index:
-      self.next_index += 1
-      if self.next_index == len(video_file_list):
-        self.next_index = 0
-  
-    path = video_file_list[self.next_index]
+    if selected:
+      path = [ p for p in self.loaded_videos if selected in p ][0]
+      self.next_index = self.loaded_videos.index(path)
+    else:
+      self.next_index = random.randint(0,len(video_file_list)-1)
+      if self.next_index == self.current_file_index:
+        self.next_index += 1
+        if self.next_index == len(video_file_list):
+          self.next_index = 0
+    
+      path = video_file_list[self.next_index]
     # if '.mov' in file_path.lower() or '.mp4' in file_path.lower():
       # self.print_video_segment(file_path, 2)
       # valid_file = True
     self.loaded_video = cv.VideoCapture(path)
+    # https://docs.opencv.org/3.4/d4/d15/group__videoio__flags__base.html
+    # video_length = int(self.loaded_video.get(cv.CAP_PROP_FRAME_COUNT))
+
+    video_length = int(self.loaded_video.get(7))
+    segments_count = 1
+    if video_length < 300:
+      segments_count = 1
+    elif video_length > 6000:
+      segments_count = 10
+    elif video_length > 3000:
+      segments_count = 5
+    elif video_length > 600:
+      segments_count = 3
+    
+    if segments_count > 2:
+      selected_segment = random.randint(0, segments_count-1)
+    else:
+      selected_segment = 0
+    starting_index = selected_segment * int(video_length/segments_count)
+    if self.start_time:
+      starting_index = self.start_time
+    self.loaded_video.set(1, starting_index);
+    # self.loaded_video.set(cv.CAP_PROP_POS_FRAMES, starting_index);
     self.current_file_index = self.next_index
   
 

@@ -1,3 +1,4 @@
+from math import fabs
 import time
 import datetime
 import subprocess
@@ -17,6 +18,7 @@ import pygame
 import ffmpeg
 import cv2 as cv
 import numpy as np
+from scipy import ndimage
 from PIL import ImageFont, ImageDraw, Image, ImageOps, ImageFilter
 
 from audio.analysis.audio_analyzer import AudioAnalyzer
@@ -65,6 +67,7 @@ class VideoEditor:
   video_filters = ['none','invert','backsub','backsub-color','backsub-color-invert','backsub-color-color']
   image_filters = ['none','invert','change-colors']
   selected_filters = []
+  freeze_filter = False
   current_video_filter = 'none'
   current_image_filter = 'none'
 
@@ -88,7 +91,7 @@ class VideoEditor:
   output_name = None
   last_font = None 
 
-  def __init__(self, file_paths, output_path=None, fonts_path=None, height=None, width=None, fps=None, q=None, verbose=False, debug=False):
+  def __init__(self, file_paths, output_path=None, fonts_path=None, height=None, width=None, fps=None, q=None, verbose=False, debug=False, init_fonts=False):
     self.fps = fps if fps else DEFAULT_FPS
     self.verbose = verbose if verbose else False
     self.debug = debug if debug else False
@@ -149,7 +152,7 @@ class VideoEditor:
     self.current_text = 'erikiano'
     self.filters_enabled = True
     
-    if fonts_path:
+    if fonts_path and init_fonts:
       self.fonts_path = fonts_path
       self.load_fonts()
 
@@ -187,12 +190,16 @@ class VideoEditor:
 
   # ASSET MANAGEMENT
 
-  def load_fonts(self, size=50, variation=0.1):
+  def load_fonts(self, size=50, variation=0.1, word=None):
     full_height = True
     txt_img = Image.new('RGBA', (self.master_width, self.master_height), (255,255,255,0))
     txt_draw = ImageDraw.Draw(txt_img)
 
-    txt = "erikiado64"
+    # txt = "erikiado64"
+    txt = "debuggeando"
+    # txt = "tury fresh"
+    if word:
+      txt = word
 
     self.loaded_fonts = [join_paths(self.fonts_path, f) for f in listdir(self.fonts_path) if isfile(join_paths(self.fonts_path, f)) and 'tf' in f ]
     self.log('asset', 'loaded fonts: {}'.format([fp.split('/')[-1].split('.')[0] for fp in self.loaded_fonts ]))
@@ -205,14 +212,15 @@ class VideoEditor:
     for p in self.loaded_fonts:
       # random varied size
       font_name = p.split('/')[-1].split('.')[0]
-      big = size-int((size*variation)-(FONT_WIDTHS[font_name]*(size//10)))
-      small = size+int(size*variation)
-      if small > big:
-        tmp_small = big
-        big = small
-        small = tmp_small
-      font_size = random.randint(small, big)
-      font = ImageFont.truetype(p, font_size)
+
+      # big = size-int((size*variation)-(FONT_WIDTHS[font_name]*(size//10)))
+      # small = size+int(size*variation)
+      # if small > big:
+      #   tmp_small = big
+      #   big = small
+      #   small = tmp_small
+      # font_size = random.randint(small, big)
+      # font = ImageFont.truetype(p, font_size)
       
       size_key = '{}x{}'.format(self.master_height, self.master_width)
       if size_key not in font_size_map:
@@ -220,28 +228,70 @@ class VideoEditor:
       if font_name not in font_size_map[size_key]:
         font_size_map[size_key][font_name] = dict()
 
-      if (full_height and 
-          'height' not in font_size_map[size_key][font_name]):
+      # if (full_height and 
+      #     'height' not in font_size_map[size_key][font_name]):
+      #   print('loading height font size map')
+      #   fontsize = int(3*(self.master_height/4))  # starting font size
+      #   img_fraction = 1 # portion of image width you want text width to be
+      #   font = ImageFont.truetype(p, fontsize)
+      #   h = txt_draw.textsize(txt, font=font)[1]
+      #   while h < img_fraction*txt_img.size[1]:
+      #     # iterate until the text size is just larger than the criteria
+      #     # if h+(loquemideelquesigue?)< img_fraction*txt_img.size[1]:
+      #     fontsize += 10
+      #     font = ImageFont.truetype(p, fontsize)
+      #     h = txt_draw.textsize(txt, font=font)[1]
+      #   # while h < img_fraction*txt_img.size[1]:
+      #   #   fontsize += 1
+      #   self.log('asset', str(fontsize)+' - '+p)
+      #   font_size_map[size_key][font_name]['height'] = fontsize
 
-        fontsize = int(3*(self.master_height/4))  # starting font size
-        img_fraction = 1 # portion of image width you want text width to be
+      # if (full_height and 
+      #     'width' not in font_size_map[size_key][font_name]):
+      #   print('loading width font size map')
+      #   fontsize = 20  # starting font size
+      #   # fontsize = int(2*(self.master_width/4))  # starting font size
+      #   img_fraction = 1 # portion of image width you want text width to be
+      #   font = ImageFont.truetype(p, fontsize)
+      #   w = txt_draw.textsize(txt, font=font)[0]
+      #   while w < img_fraction*txt_img.size[0]:
+      #     # iterate until the text size is just larger than the criteria
+      #     # if h+(loquemideelquesigue?)< img_fraction*txt_img.size[1]:
+      #     fontsize += 10
+      #     font = ImageFont.truetype(p, fontsize)
+      #     w = txt_draw.textsize(txt, font=font)[0]
+      #   # while h < img_fraction*txt_img.size[1]:
+      #   #   fontsize += 1
+      #   self.log('asset', str(fontsize)+' - '+p)
+      #   font_size_map[size_key][font_name]['width'] = fontsize
+
+      fontsize = 20  # starting font size
+      if (full_height and 
+          'word' not in font_size_map[size_key][font_name]):
+        print('loading word font size map')
+        fontsize = 20  # starting font size
+        # fontsize = int(2*(self.master_width/4))  # starting font size
+        img_fraction = 0.8 # portion of image width you want text width to be
         font = ImageFont.truetype(p, fontsize)
-        h = txt_draw.textsize(txt, font=font)[1]
-        while h < img_fraction*txt_img.size[1]:
+        tsize = txt_draw.textsize(txt, font=font)
+        w = tsize[0]
+        h = tsize[1]
+        while w < int(img_fraction*txt_img.size[0]) and h < int(img_fraction*txt_img.size[1]):
           # iterate until the text size is just larger than the criteria
           # if h+(loquemideelquesigue?)< img_fraction*txt_img.size[1]:
-          fontsize += 10
+          fontsize += 5
           font = ImageFont.truetype(p, fontsize)
-          h = txt_draw.textsize(txt, font=font)[1]
+          tsize = txt_draw.textsize(txt, font=font)
+          w = tsize[0]
+          h = tsize[1]
         # while h < img_fraction*txt_img.size[1]:
         #   fontsize += 1
         self.log('asset', str(fontsize)+' - '+p)
-        font_size_map[size_key][font_name]['height'] = fontsize
+        font_size_map[size_key][font_name]['width'] = fontsize
 
+      font_width = FONT_WIDTHS[font_name] * (0.8 * fontsize)
 
-      font_width = FONT_WIDTHS[font_name] * (0.8 * font_size)
-
-      self.fonts.append(dict(font=font,width=font_width))
+      self.fonts.append(dict(font=font, width=font_width))
     pickle.dump(font_size_map, open(PATHS['font_size_map'], 'wb'))
 
 
@@ -304,10 +354,43 @@ class VideoEditor:
     final_video_path = '.'.join(path_parts)
     subprocess.check_call(['ffmpeg','-i',video_file_path,'-i',audio_file_path,'-c:v','copy','-c:a','aac', final_video_path])
 
+  def join_timed_audio_video(self, video_file_path, source_video_file, start_time=0, duration=10):
+    # strip ranged audio
+    # ffmpeg -i hotpocket.mp4 -c:v copy -c:a aac hotpocket_audio.mp4
+    clip_audio_path = video_file_path.replace('.mp4','_a.mp4')
+    subprocess.check_call(['ffmpeg','-ss',str(start_time),'-t',str(duration),'-i',source_video_file,'-c:v','copy','-c:a','aac', clip_audio_path])
+    # audio_file_path = new file
+    # ffmpeg -i hotpocket.mp4 -i memories/hotpocket.wav -c:v copy -c:a aac hotpocket_audio.mp4
+
+    # path_parts = video_file_path.split('.')
+    # path_parts[-2] += '_audio'
+    # final_video_path = '.'.join(path_parts)
+    # subprocess.check_call(['ffmpeg','-i',video_file_path,'-i',audio_file_path,'-c:v','copy','-c:a','aac', final_video_path])
+
 
   # MAIN LOOP MODES
-  def play_live_video(self, clips=[]):
+  def play_live_video(self, clips=[], colors=None, filters=None):
     self.clips = clips
+    if colors:
+      self.colors = colors
+    self.video_enabled = True
+    # self.filters_enabled = False
+    if filters:
+      self.filters_enabled = True
+      self.freeze_filter = True
+      self.current_image_filter = 'invert'
+      self.current_image_filter = 'sort'
+      self.selected_filters = ['none','invert']
+      # 'none','invert','backsub','backsub-color','backsub-color-invert','backsub-color-color'
+    else:
+      self.filters_enabled = False
+
+
+    self.fps = 20
+
+    self.video_source_rate = self.fps * 1
+    self.image_source_rate = self.fps * 1
+    self.source_rate = self.fps * 1
     self.main_video_loop(live_video=True)
 
 
@@ -553,7 +636,7 @@ class VideoEditor:
   def apply_filters(self, f, frame_count):
     if self.filters_enabled:
       # randomly 20% check if peak frame or source rate to change image filter
-      if random.randint(0,10) > 8:
+      if not self.freeze_filter and random.randint(0,10) > 8:
         if frame_count%int(self.image_source_rate/2) == 0 or frame_count in self.peak_frames:
           self.change_current_image_filter()
         if frame_count%int(self.video_source_rate/2) == 0 or frame_count in self.peak_frames:
@@ -566,6 +649,8 @@ class VideoEditor:
       return final_frame
     return f
 
+  def sigmoid(x):
+    return 1/(1+math.exp(-x))
 
   def apply_image_filters(self,f):
     frame = None
@@ -573,6 +658,75 @@ class VideoEditor:
       frame = f
     elif self.current_image_filter == 'invert':
       frame = (255-f)
+    elif self.current_image_filter == 'half-sort':
+
+      lf = ndimage.gaussian_laplace(f, sigma=0.001) # colored lsd
+      y1 = 0
+      y2 = 1080
+      x1 = 0
+      x2 = 820
+      f[y1:y2, x1:x2] = lf[y1:y2, x1:x2]
+      frame = f
+    elif self.current_image_filter == 'sort':
+      # frame = f > f.mean()
+
+      # sx = ndimage.sobel(f, axis=0, mode='wrap') # constant, reflect, mirror
+      # frame = sx
+      # k = np.array([[1,1,1],[1,1,0],[1,0,0]])
+      # frame = ndimage.convolve(f, k, mode='constant', cval=0.0)
+      # frame = ndimage.gaussian_laplace(f, sigma=1) # colored pixels
+      # frame = ndimage.gaussian_laplace(f, sigma=0.1) # colored lsd
+      # frame = ndimage.gaussian_laplace(f, sigma=0.01) # colored lsd
+      
+      # frame = ndimage.gaussian_laplace(f, sigma=0.001) # colored lsd
+
+      # frame = cv.xphoto.oilPainting(f, 7, 1)
+      dst_gray, dst_color = cv.pencilSketch(f, sigma_s=20, sigma_r=0.01, shade_factor=0.03) 
+      frame = dst_gray
+      # # f = np.resize(f, (135,240,3))
+      # # f = np.resize(f, (55,20,3))
+      # f = np.resize(f, (640,360,3))
+      # # f.resize((240,135))
+      # s = f.shape
+      # for i in range(s[0]-1,0,-1):
+      #   for j in range(s[1]-1,0,-1):
+      #     # if f[i,j,0]-f[i-1,j-1,0] < 50:
+      #     #   f[i-1,j-1,0] = f[i,j,0]
+      #     # if f[i,j,1]-f[i-1,j-1,1] < 40:
+      #     #   f[i-1,j-1,1] = f[i,j,1]
+      #     if f[i,j,2]-f[i-1,j-1,2] < 90:
+      #       f[i-1,j-1,2] = f[i,j,2]
+      # f = np.resize(f, (1080,1920,3))
+      
+      # for i in range(s[0]-1,0,-1):
+      #   for j in range(s[1]-1,0,-1):
+      #     if f[i,j,0]-f[i-1,j-1,0] < 50:
+      #       f[i-1,j-1,0] = f[i,j,0]
+      #     if f[i,j,1]-f[i-1,j-1,1] < 40:
+      #       f[i-1,j-1,1] = f[i,j,1]
+      #     if f[i,j,2]-f[i-1,j-1,2] < 90:
+      #       f[i-1,j-1,2] = f[i,j,2]
+      # frame = f
+      
+
+      # frame = ndimage.gaussian_laplace(f, sigma=0.2) # colored
+
+      # sy = ndimage.sobel(f, axis=1, mode='reflect')
+      # sob = np.hypot(sx, sy)
+      # frame = np.uint8(sob)
+      # label_im, nb_labels = ndimage.label(f)
+      # frame = label_im
+      # sx = ndimage.sobel(f, axis=0, mode='constant')
+      # sy = ndimage.sobel(f, axis=1, mode='constant')
+      # sob = np.hypot(sx, sy)
+      # frame = ndimage.rotate(f, 15, mode='constant') # slow
+      # frame = sx - sy
+      # frame = sy - sx
+      # print(type(f))
+      # print(len(f))
+      # print(len(f[0]))
+      # print(len(f[0][0]))
+      # print(f[0][0][0])
     elif self.current_image_filter == 'change-colors':
       lower = (0, 0, 0) # lower bound for each channel
       upper = (25, 25, 25) # upper bound for each channel
@@ -594,6 +748,11 @@ class VideoEditor:
   def change_current_image_filter(self, flter=None):
     if flter:
       self.current_image_filter = flter
+    elif self.selected_filters:
+      filters = list(self.selected_filters)
+      filters.remove(self.current_image_filter)
+      shuffle(filters)
+      self.current_image_filter = filters[0]
     else:
       filters = list(self.image_filters)
       filters.remove(self.current_image_filter)
@@ -602,6 +761,11 @@ class VideoEditor:
   def change_current_video_filter(self, filter_name=None):
     if filter_name:
       self.current_video_filter = filter_name
+    elif self.selected_filters:
+      filters = list(self.selected_filters)
+      filters.remove(self.current_video_filter)
+      shuffle(filters)
+      self.current_video_filter = filters[0]
     else:
       filters = list(self.video_filters)
       filters.remove(self.current_video_filter)
@@ -676,7 +840,7 @@ class VideoEditor:
 
   def generate_text_sprite(self, text, seconds=5, colors=[], background=(0,255,0)):
     # self.load_fonts(size=110, variation=0)
-    self.load_fonts(size=350, variation=0)
+    self.load_fonts(text)
     self.background = background
     if colors:
       self.colors = colors
@@ -701,20 +865,23 @@ class VideoEditor:
     self.main_video_loop(live_video=False)
 
 
-  def generate_audio_roll(self, file_name, clips=[]):     
+  def generate_audio_roll(self, file_name, output_name=None, clips=[]):     
     currentDT = datetime.datetime.now()
     audio_file_path = self.get_audio_file_path(file_name)
     if not audio_file_path:
       print('no audio file')
       return
     self.total_video_frames, self.peak_frames = self.get_audio_metadata(audio_file_path)
-    self.output_name = self.generate_output_name(file_name[:-4]+'_'+currentDT.strftime("%y%m%d_%H%M%S"), 'audiovisual')
+    if output_name:
+      self.output_name = self.generate_output_name(output_name+'_'+file_name[:-4]+'_'+currentDT.strftime("%y%m%d_%H%M%S"), 'audiovisual')
+    else:
+      self.output_name = self.generate_output_name(file_name[:-4]+'_'+currentDT.strftime("%y%m%d_%H%M%S"), 'audiovisual')
     self.video_writer = cv.VideoWriter(self.output_name, 
                                        self.fourcc, 
                                        self.fps, 
                                        self.master_size,
                                        self.color_video)
-    source_rate = self.fps * 15
+    source_rate = self.fps * 13
     # if filters:
     #   self.filters_enabled = True
     # else:
@@ -723,7 +890,7 @@ class VideoEditor:
     self.text_sprite = None
     self.background = None
     self.video_source_rate = source_rate
-    self.image_source_rate = self.fps * 3 # source_rate
+    self.image_source_rate = self.fps * 2 # source_rate
     self.frame_queue.update_source_rate(source_rate, image_source_rate=self.image_source_rate)
     self.main_video_loop(live_video=False)
     self.join_audio_video(self.output_name, audio_file_path)
@@ -884,11 +1051,55 @@ class VideoEditor:
         self.loaded_video.release()
 
 
+
+  def clip_podcast_video(self, input_path, clips=[]):
+    # self.set_video_dimensions(1080, 1080) #post
+    # self.load_fonts(size=110, variation=0)
+    # self.background = background
+
+    if clips:
+      self.clips = clips
+    # if colors:
+    #   self.colors = colors
+    # else:
+    #   self.colors = [
+    #     (0,0,0),
+    #     (255,255,255),
+    #     (0,0,255),
+    #     (255,255,0),
+    #   ]
+
+    self.video_enabled = True
+    self.filters_enabled = False
+
+    for clip in clips:
+      self.output_name = self.generate_output_name('_'.join(input_path.split(' '))+'_'+'_'.join(clip['options']['text'].split(' '))+'_clip', 'clips')
+      self.video_writer = cv.VideoWriter(self.output_name, 
+                                       self.fourcc, 
+                                       self.fps, 
+                                       self.master_size,
+                                       self.color_video)
+      self.total_video_frames = clip['duration'] * self.fps
+      # self.text_sprite = text
+      # self.video_source_rate = 25
+      # self.image_source_rate = 5
+      # self.frame_queue.update_source_rate(self.video_source_rate, image_source_rate=self.image_source_rate)
+      frame_queue_config = dict(selected=input_path, start_time=0)
+
+      self.frame_queue.update_config(frame_queue_config)
+      self.main_video_loop(live_video=False)
+      real_input_path = [ p for p in self.frame_queue.loaded_videos if input_path in p ][0]
+      self.join_timed_audio_video(self.output_name, real_input_path)
+    
+
   # MAIN LOOP
 
   def main_video_loop(self, live_video=True):
     self.live_video = live_video
+    # cv.namedWindow('output', cv.WND_PROP_FULLSCREEN)
+    # cv.setWindowProperty('output', cv.WND_PROP_FULLSCREEN, cv.WINDOW_FULLSCREEN)
     self.prepare_main_video_loop()
+    # cv.namedWindow("output", cv.WINDOW_NORMAL)
 
     while self.render_active:
       # end if last frame or esc 
@@ -900,7 +1111,21 @@ class VideoEditor:
         if k == 27:
           self.render_active = False
           break
+        if k == 32: # ' '
+          self.frame_queue.load_next_video()
+        if k == 102: # 'f'
+          self.filters_enabled = not self.filters_enabled
+        if k == 103: # 'g'
+          # self.filters_enabled = not self.filters_enabled
+          if self.current_image_filter == 'invert':
+            self.current_image_filter = 'sort'
+          else:
+            self.current_image_filter = 'invert'
+        if k == 104: # 'g'
+          # self.filters_enabled = not self.filters_enabled
+          self.current_image_filter = 'half-sort'
 
+          # cv.namedWindow("output", cv.WINDOW_FULLSCREEN)
       if self.live_video:
         # wait for next frame according to fps
         self.clock.tick(self.fps)
@@ -921,7 +1146,7 @@ class VideoEditor:
       final_frame = final_frame[:self.master_height, :self.master_width]
 
       if self.live_video:
-        cv.imshow('self.output_name', final_frame)
+        cv.imshow('output', final_frame)
       else:
         self.video_writer.write(final_frame) 
         if self.frame_count%int(self.total_video_frames/5) == 0:
